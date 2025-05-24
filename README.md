@@ -43,4 +43,4 @@ console-MTML-MTMR-PSM1-PSM2-Teleop.json
 # asking for second input json file
 ../jhu-daVinci/console-MTML2-MTMR2.json
 ```
-After the alignment is compoleted, then press the Coag pedal and the teleoperation will start.
+After the alignment is completed, then press the Coag pedal and the teleoperation will start.
