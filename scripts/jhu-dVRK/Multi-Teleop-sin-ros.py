@@ -34,7 +34,7 @@ class teleoperation:
         FOLLOWING = 3
 
     def __init__(self, ral, mtm1, mtm2, puppet, clutch_topic, run_period, align_mtm, operator_present_topic = "", alpha = 0.5, beta = 0.5):
-        print('Initialzing dvrk_teleoperation for {} and {}'.format(master.name, puppet.name))
+        print('Initialzing dvrk_teleoperation for {}, {} and {}'.format(mtm1.name, mtm2.name, puppet.name))
         self.ral = ral
         self.run_period = run_period
 
@@ -100,8 +100,19 @@ class teleoperation:
         mean_quat = alpha * quat1 + (1-alpha) * quat2
         mean_quat /= numpy.linalg.norm(mean_quat)
 
-        # transform into rotation matrix
-        return PyKDL.Quaternion(mean_quat[0], mean_quat[1], mean_quat[2], mean_quat[3])
+        # # transform into rotation matrix
+        # angle = 2 * numpy.arccos(mean_quat[3])
+        # s = numpy.sqrt(1 - mean_quat[3] ** 2)
+
+        # if s < 1e-8:
+        #     axis = numpy.array([1.0, 0.0, 0.0])
+        # else:
+        #     axis = numpy.array([mean_quat[0], mean_quat[1], mean_quat[2]]) / s
+        
+
+
+
+        return PyKDL.Rotation.Quaternion(mean_quat[0], mean_quat[1], mean_quat[2], mean_quat[3])
 
     # callback for operator pedal/button
     def on_operator_present(self, present):
@@ -298,6 +309,7 @@ class teleoperation:
         # force input
         #### add gamma?
         force_goal = 0.2 * (self.beta * master1_measured_cf + (1 - self.beta) * master2_measured_cf + puppet_measured_cf)
+        force_goal = force_goal.tolist()
 
 
         # Position channel
@@ -342,6 +354,7 @@ class teleoperation:
 
         # average velocity
         puppet_velocity_goal = (master1_measured_cv + master2_measured_cv) / 2.0
+        puppet_velocity_goal = puppet_velocity_goal.tolist()
 
 
         # Move
@@ -363,6 +376,8 @@ class teleoperation:
         # move ghost at most max_delta towards current gripper
         self.gripper_ghost += math.copysign(min(abs(ghost_lag), max_delta), ghost_lag)
         self.puppet.jaw.servo_jp(numpy.array([self.gripper_to_jaw(self.gripper_ghost)]))
+
+        print("run_following is finished.")
 
 
 
@@ -393,8 +408,9 @@ class teleoperation:
         puppet_measured_cv = self.puppet.measured_cv()[0]   # (6,) numpy array
         puppet_measured_cv[0:3] /= self.velocity_scale      # scale the linear velocity
         puppet_measured_cv[3:6] *= 0.2      # scale down the angular velocity by 0.2
-        master1_velocity_goal = puppet_measured_cv
-        master2_velocity_goal = puppet_measured_cv
+        master1_velocity_goal = puppet_measured_cv.tolist()
+        master2_velocity_goal = puppet_measured_cv.tolist()
+
 
         # Move
         self.master1.servo_cs(master1_cartesian_goal, master1_velocity_goal, force_goal)
@@ -451,10 +467,13 @@ class teleoperation:
             # check if teleop state should transition
             if self.current_state == teleoperation.State.ALIGNING:
                 self.transition_aligning()
+                print("transition_aligning is finished.")
             elif self.current_state == teleoperation.State.CLUTCHED:
                 self.transition_clutched()
+                print("transition_clutched is finished.")
             elif self.current_state == teleoperation.State.FOLLOWING:
                 self.transition_following()
+                print("transition_following is finished.")
             else:
                 raise RuntimeError("Invalid state: {}".format(self.current_state))
 
@@ -467,8 +486,10 @@ class teleoperation:
             # run teleop state handler
             if self.current_state == teleoperation.State.ALIGNING:
                 self.run_aligning()
+                print("run_aligning is finished.")
             elif self.current_state == teleoperation.State.CLUTCHED:
                 self.run_clutched()
+                print("run_clutched is finished.")
             elif self.current_state == teleoperation.State.FOLLOWING:
                 self.run_following()
             else:
@@ -580,15 +601,15 @@ if __name__ == '__main__':
     # parse arguments
     parser = argparse.ArgumentParser(description = __doc__,
                                      formatter_class = argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-m', '--mtm', type = str, required = True, nargs='2',
+    parser.add_argument('-m', '--mtm', type = str, required = True, nargs=2,
                         choices = ['MTML', 'MTMR'],
                         help = 'Must type in two MTM arm names corresponding to ROS topics without namespace. Use __ns:= to specify the namespace')
     parser.add_argument('-p', '--psm', type = str, required = True,
                         choices = ['PSM1', 'PSM2', 'PSM3'],
                         help = 'PSM arm name corresponding to ROS topics without namespace. Use __ns:= to specify the namespace')
-    parser.add_argument('-c', '--clutch', type = str, default='/footpedals/clutch',
+    parser.add_argument('-c', '--clutch', type = str, default='/console_1/clutch',
                         help = 'ROS topic corresponding to clutch button/pedal input')
-    parser.add_argument('-o', '--operator', type = str, default='/footpedals/coag', const=None, nargs='?',
+    parser.add_argument('-o', '--operator', type = str, default='/console_1/operator_present', const=None, nargs='?',
                         help = 'ROS topic corresponding to operator present button/pedal/sensor input - use "-o" without an argument to disable')
     parser.add_argument('-n', '--no-mtm-alignment', action='store_true',
                         help="don't align mtm (useful for using haptic devices as MTM which don't have wrist actuation)")
